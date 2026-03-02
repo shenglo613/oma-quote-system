@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime, timezone
 from typing import Optional
 import streamlit as st
 from supabase import create_client, Client
@@ -14,8 +15,9 @@ def get_client() -> Client:
 
 # ── Settings ──────────────────────────────────────────
 
+@st.cache_data(ttl=300)
 def load_settings() -> dict[str, float]:
-    """從 Supabase 讀取系統參數，回傳 {key: float}"""
+    """從 Supabase 讀取系統參數，回傳 {key: float}；快取 5 分鐘"""
     client = get_client()
     rows = client.table("settings").select("key, value").execute().data
     return {row["key"]: float(row["value"]) for row in rows}
@@ -30,6 +32,7 @@ def save_settings(tax_rate: float, labor_rate: float, min_profit: float) -> None
     ]
     for u in updates:
         client.table("settings").upsert(u).execute()
+    load_settings.clear()  # 存完立即清快取，下次載入拿到最新值
 
 
 # ── Quotes ────────────────────────────────────────────
@@ -46,6 +49,7 @@ def save_quote(quote_data: dict, line_items: list[dict]) -> str:
         # 更新：從 payload 排除 id，避免 PostgREST 收到不必要的主鍵欄位
         quote_id = quote_data["id"]
         update_payload = {k: v for k, v in quote_data.items() if k != "id"}
+        update_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
         client.table("quotes").update(update_payload).eq("id", quote_id).execute()
         client.table("line_items").delete().eq("quote_id", quote_id).execute()
     else:

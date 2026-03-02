@@ -31,7 +31,8 @@ with st.form("settings_form"):
         value=db.get("tax_rate", TAX_RATE),
         min_value=0.0, max_value=1.0, step=0.01, format="%.2f",
     )
-    st.warning("⚠️ 修改關稅率將影響所有新報價單。歷史已儲存報價不受影響。")
+    if new_tax != db.get("tax_rate", TAX_RATE):
+        st.warning("⚠️ 修改關稅率將影響所有新報價單。歷史已儲存報價不受影響。")
 
     submitted = st.form_submit_button("儲存設定", type="primary")
     if submitted:

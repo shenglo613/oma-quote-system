@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-from src.models import LineItemInput, QuoteParams
-from src.calculator import calculate_line_item
+from src.models import LineItemInput, LineItemResult, QuoteParams
 from config.defaults import PART_CATEGORIES, PROCUREMENT_METHODS, CURRENCIES
 
 
@@ -43,11 +42,10 @@ def parse_input_df(df: pd.DataFrame) -> list[LineItemInput]:
     return items
 
 
-def compute_results_df(inputs: list[LineItemInput], params: QuoteParams) -> pd.DataFrame:
-    """計算所有明細並回傳顯示用 DataFrame"""
+def compute_results_df(results: list[LineItemResult]) -> pd.DataFrame:
+    """將預計算結果轉成顯示用 DataFrame（不重複計算）"""
     rows = []
-    for inp in inputs:
-        r = calculate_line_item(inp, params)
+    for r in results:
         rows.append({
             "台幣成本": f"{r.cost_twd:,.0f}",
             "關稅": f"{r.tariff:,.0f}",
