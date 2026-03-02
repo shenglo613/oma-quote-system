@@ -27,8 +27,12 @@ authenticator = stauth.Authenticate(
     auto_hash=False,
 )
 
-# 0.4.x: login() 第一個參數是 location，不再接受 form 標題字串
-name, authentication_status, username = authenticator.login(location="main")
+# 0.4.x: login() 結果存在 st.session_state，不回傳 tuple
+authenticator.login(location="main")
+
+authentication_status = st.session_state.get("authentication_status")
+name     = st.session_state.get("name")
+username = st.session_state.get("username")
 
 if authentication_status is False:
     st.error("帳號或密碼錯誤")
@@ -41,13 +45,11 @@ if authentication_status is None:
 # 登入成功 — 儲存 session
 role = st.secrets["credentials"]["usernames"][username]["role"]
 st.session_state["role"] = role
-st.session_state["username"] = username
-st.session_state["name"] = name
 
 # ── 首頁內容 ──
 st.title("🔧 OMA 零件報價系統")
 st.markdown(f"歡迎，**{name}**（{role}）")
-authenticator.logout("登出", location="sidebar")
+authenticator.logout(location="sidebar")
 
 st.markdown("""
 ### 快速導覽
