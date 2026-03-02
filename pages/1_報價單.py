@@ -7,7 +7,7 @@ from datetime import date
 from src.ui_helpers import require_login, get_role, build_input_df, parse_input_df, compute_results_df
 from src.models import LineItemInput, LineItemResult, QuoteParams, QuoteTotals
 from src.calculator import calculate_line_item, calculate_totals
-from src.db import load_settings, save_quote, load_quote
+from src.db import load_settings, save_quote, load_quote, quote_number_exists
 from src.export_csv import build_csv_bytes
 from src.export_pdf import build_pdf_bytes
 from config.defaults import (
@@ -79,7 +79,18 @@ if "quote_status"  not in st.session_state:
 
 is_confirmed = st.session_state["quote_status"] == "已確認"
 
-st.title("📋 報價單")
+col_title, col_new = st.columns([6, 1])
+with col_title:
+    st.title("📋 報價單")
+with col_new:
+    st.write("")
+    if st.button("＋ 新增報價", use_container_width=True):
+        for key in ["quote_id", "quote_status", "line_items",
+                    "qf_quote_number", "qf_customer_type", "qf_customer_name",
+                    "qf_currency", "qf_exchange_rate", "qf_notes", "qf_quote_date"]:
+            st.session_state.pop(key, None)
+        st.rerun()
+
 if is_confirmed:
     st.success("✅ 此報價單已確認，不可再編輯。")
 
@@ -241,6 +252,10 @@ def _validate() -> bool:
         return False
     if not any(inp.part_name.strip() for inp in inputs):
         st.error("請至少填寫一筆有名稱的零件明細")
+        return False
+    # 新增報價時才檢查重複單號（更新時不重複檢查）
+    if not st.session_state["quote_id"] and quote_number_exists(quote_number):
+        st.error(f"報價單號 {quote_number!r} 已存在，請使用不同的編號")
         return False
     return True
 

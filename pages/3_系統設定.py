@@ -13,7 +13,11 @@ if get_role() != "manager":
 st.title("⚙️ 系統設定")
 st.caption("修改預設系統參數。此設定影響**所有新建報價單**的預設值。")
 
-db = load_settings()
+try:
+    db = load_settings()
+except Exception as e:
+    st.error(f"讀取系統設定失敗：{e}")
+    st.stop()
 
 with st.form("settings_form"):
     new_labor = st.number_input(

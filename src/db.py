@@ -41,13 +41,16 @@ def save_quote(quote_data: dict, line_items: list[dict]) -> str:
     """
     儲存或更新報價單。
     quote_data 包含 id（更新）或不含 id（新增）。
-    回傳 quote id。
+    回傳 quote id。已確認的報價單不可修改，否則拋 ValueError。
     """
     client = get_client()
 
     if "id" in quote_data and quote_data["id"]:
-        # 更新：從 payload 排除 id，避免 PostgREST 收到不必要的主鍵欄位
+        # 更新：先確認現有狀態，禁止覆寫已確認單
         quote_id = quote_data["id"]
+        existing = client.table("quotes").select("status").eq("id", quote_id).execute()
+        if existing.data and existing.data[0].get("status") == "已確認":
+            raise ValueError("已確認的報價單不可修改")
         update_payload = {k: v for k, v in quote_data.items() if k != "id"}
         update_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
         client.table("quotes").update(update_payload).eq("id", quote_id).execute()
@@ -72,12 +75,10 @@ def save_quote(quote_data: dict, line_items: list[dict]) -> str:
 def load_quote(quote_id: str) -> Optional[dict]:
     """讀取報價單主資料 + 明細；找不到時回傳 None"""
     client = get_client()
-    try:
-        quote = client.table("quotes").select("*").eq("id", quote_id).single().execute().data
-    except Exception:
+    result = client.table("quotes").select("*").eq("id", quote_id).execute()
+    if not result.data:
         return None
-    if not quote:
-        return None
+    quote = result.data[0]
     items = (
         client.table("line_items")
         .select("*")

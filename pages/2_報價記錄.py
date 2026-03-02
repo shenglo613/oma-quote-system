@@ -18,7 +18,11 @@ with f2:
 status_param   = None if filter_status == "全部" else filter_status
 customer_param = filter_customer if filter_customer else None
 
-quotes = list_quotes(status=status_param, customer_name=customer_param)
+try:
+    quotes = list_quotes(status=status_param, customer_name=customer_param)
+except Exception as e:
+    st.error(f"讀取報價記錄失敗：{e}")
+    st.stop()
 
 if not quotes:
     st.info("目前沒有符合條件的報價單")
