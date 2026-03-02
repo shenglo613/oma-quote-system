@@ -1,6 +1,4 @@
-from dataclasses import dataclass, field
-from typing import Optional
-from datetime import date
+from dataclasses import dataclass
 
 
 @dataclass

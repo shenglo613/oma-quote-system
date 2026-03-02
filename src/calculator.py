@@ -4,6 +4,10 @@ from config.defaults import MARGIN_TABLE, AIR_FREIGHT_BONUS
 
 def calculate_line_item(item: LineItemInput, params: QuoteParams) -> LineItemResult:
     # 1. 毛利率
+    if params.customer_type not in MARGIN_TABLE:
+        raise ValueError(f"未知客戶類型：{params.customer_type!r}")
+    if item.part_category not in MARGIN_TABLE[params.customer_type]:
+        raise ValueError(f"未知零件分類：{item.part_category!r}")
     margin_rate = MARGIN_TABLE[params.customer_type][item.part_category]
     if item.procurement_method == "空運":
         margin_rate += AIR_FREIGHT_BONUS
@@ -39,7 +43,7 @@ def calculate_line_item(item: LineItemInput, params: QuoteParams) -> LineItemRes
         cost_twd=round(cost_twd, 2),
         tariff=round(tariff, 2),
         landed_cost=round(landed_cost, 2),
-        margin_rate=margin_rate,
+        margin_rate=round(margin_rate, 4),
         part_price=round(part_price, 2),
         labor_cost=round(labor_cost, 2),
         subtotal=round(subtotal, 2),
@@ -55,6 +59,6 @@ def calculate_totals(
     return QuoteTotals(
         total_parts=round(sum(r.part_price for r in results), 2),
         total_labor=round(sum(r.labor_cost for r in results), 2),
-        total_freight=round(sum(i.freight_twd for i in inputs), 2),
+        total_freight=round(sum(0.0 if i.procurement_method == "庫存" else i.freight_twd for i in inputs), 2),
         grand_total=round(sum(r.subtotal for r in results), 2),
     )

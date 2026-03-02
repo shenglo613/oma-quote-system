@@ -58,6 +58,24 @@ class TestMarginRate:
         result = calculate_line_item(item, make_params())
         assert result.margin_rate == pytest.approx(0.50)
 
+    def test_dealer_category_c_with_air(self):
+        item = LineItemInput(part_category="C", procurement_method="空運",
+                             cost_foreign=100, freight_twd=0, labor_hours=0)
+        result = calculate_line_item(item, make_params(customer_type="經銷商"))
+        assert result.margin_rate == pytest.approx(0.40)  # 30% + 10%
+
+
+class TestInvalidInput:
+    def test_invalid_customer_type_raises(self):
+        item = LineItemInput(part_category="A")
+        with pytest.raises(ValueError, match="未知客戶類型"):
+            calculate_line_item(item, make_params(customer_type="VIP"))
+
+    def test_invalid_part_category_raises(self):
+        item = LineItemInput(part_category="Z")
+        with pytest.raises(ValueError, match="未知零件分類"):
+            calculate_line_item(item, make_params())
+
 
 class TestCostCalculation:
     def test_cost_twd_conversion(self):
@@ -119,6 +137,13 @@ class TestFloorMechanism:
 
 
 class TestTotals:
+    def test_inventory_freight_excluded_from_total(self):
+        from src.models import LineItemResult
+        results = [LineItemResult()]
+        inputs = [LineItemInput(procurement_method="庫存", freight_twd=999)]
+        totals = calculate_totals(results, inputs)
+        assert totals.total_freight == pytest.approx(0.0)
+
     def test_totals_calculation(self):
         from src.models import LineItemResult
         results = [
