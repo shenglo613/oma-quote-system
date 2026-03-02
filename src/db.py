@@ -43,9 +43,10 @@ def save_quote(quote_data: dict, line_items: list[dict]) -> str:
     client = get_client()
 
     if "id" in quote_data and quote_data["id"]:
-        # 更新
+        # 更新：從 payload 排除 id，避免 PostgREST 收到不必要的主鍵欄位
         quote_id = quote_data["id"]
-        client.table("quotes").update(quote_data).eq("id", quote_id).execute()
+        update_payload = {k: v for k, v in quote_data.items() if k != "id"}
+        client.table("quotes").update(update_payload).eq("id", quote_id).execute()
         client.table("line_items").delete().eq("quote_id", quote_id).execute()
     else:
         # 新增
@@ -53,20 +54,24 @@ def save_quote(quote_data: dict, line_items: list[dict]) -> str:
         res = client.table("quotes").insert(quote_data).execute()
         quote_id = res.data[0]["id"]
 
-    # 重新插入明細（含 sort_order）
-    for i, item in enumerate(line_items):
-        item["quote_id"] = quote_id
-        item["sort_order"] = i
-    if line_items:
-        client.table("line_items").insert(line_items).execute()
+    # 重新插入明細（含 sort_order）；用新 dict 避免 mutate 呼叫方的資料
+    items_to_insert = [
+        {**item, "quote_id": quote_id, "sort_order": i}
+        for i, item in enumerate(line_items)
+    ]
+    if items_to_insert:
+        client.table("line_items").insert(items_to_insert).execute()
 
     return quote_id
 
 
 def load_quote(quote_id: str) -> Optional[dict]:
-    """讀取報價單主資料 + 明細"""
+    """讀取報價單主資料 + 明細；找不到時回傳 None"""
     client = get_client()
-    quote = client.table("quotes").select("*").eq("id", quote_id).single().execute().data
+    try:
+        quote = client.table("quotes").select("*").eq("id", quote_id).single().execute().data
+    except Exception:
+        return None
     if not quote:
         return None
     items = (

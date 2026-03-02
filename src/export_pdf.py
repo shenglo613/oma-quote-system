@@ -1,6 +1,7 @@
 from pathlib import Path
+from datetime import date as _date
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.lib import colors
 from reportlab.platypus import (
@@ -14,6 +15,21 @@ from src.models import LineItemInput, LineItemResult, QuoteParams, QuoteTotals
 
 FONT_PATH = Path(__file__).parent.parent / "assets" / "fonts" / "NotoSansTC-Regular.ttf"
 FONT_NAME = "NotoSansTC"
+
+
+def _draw_footer(canvas, doc):
+    """每頁底部印產生日期"""
+    _register_font()
+    canvas.saveState()
+    canvas.setFont(FONT_NAME, 8)
+    canvas.setFillColor(colors.grey)
+    footer_text = f"產生日期：{_date.today().strftime('%Y-%m-%d')}"
+    canvas.drawRightString(
+        doc.pagesize[0] - 15 * mm,
+        10 * mm,
+        footer_text,
+    )
+    canvas.restoreState()
 
 
 def _register_font():
@@ -40,7 +56,6 @@ def build_pdf_bytes(
         bottomMargin=15 * mm,
     )
 
-    styles = getSampleStyleSheet()
     normal = ParagraphStyle("normal_tc", fontName=FONT_NAME, fontSize=9, leading=14)
     title_style = ParagraphStyle("title_tc", fontName=FONT_NAME, fontSize=14,
                                  leading=20, spaceAfter=6)
@@ -80,7 +95,8 @@ def build_pdf_bytes(
     # ── 明細表 ──
     headers = ["零件名稱", "分類", "取得", "外幣成本", "到岸成本",
                "毛利率", "零件售價", "保底", "工時", "工資", "小計"]
-    col_widths = [45*mm, 10*mm, 10*mm, 18*mm, 20*mm,
+    # 欄寬合計 = 180mm = A4(210) - 左右邊距(15+15)
+    col_widths = [34*mm, 10*mm, 10*mm, 18*mm, 20*mm,
                   12*mm, 20*mm, 10*mm, 10*mm, 16*mm, 20*mm]
 
     rows = [headers]
@@ -144,5 +160,5 @@ def build_pdf_bytes(
         story.append(Spacer(1, 4 * mm))
         story.append(Paragraph(f"備註：{notes}", normal))
 
-    doc.build(story)
+    doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
     return buffer.getvalue()

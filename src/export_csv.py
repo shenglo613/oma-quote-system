@@ -62,11 +62,16 @@ def build_csv_bytes(
     # 合計行
     writer.writerow([])
     writer.writerow([
-        "", "", "", "", "", "", "", "", "", "", "",
-        "【合計】", "", "", "", "", "",
-        "", "", "",
-        "", totals.total_parts, "",
-        totals.total_labor, totals.grand_total,
+        "", "", "", "", "", "", "", "", "", "", "",   # 0-10
+        "【合計】", "", "", "",                       # 11-14
+        totals.total_freight,                         # 15: 運費(TWD)
+        "",                                           # 16: 工時
+        "", "", "",                                   # 17-19: 台幣成本/關稅/到岸成本
+        "",                                           # 20: 毛利率
+        totals.total_parts,                           # 21: 零件售價
+        "",                                           # 22: 保底觸發
+        totals.total_labor,                           # 23: 工資
+        totals.grand_total,                           # 24: 小計
     ])
 
     # UTF-8 BOM
