@@ -24,7 +24,7 @@ authenticator = stauth.Authenticate(
     st.secrets["cookie"]["name"],
     st.secrets["cookie"]["key"],
     cookie_expiry_days=int(st.secrets["cookie"]["expiry_days"]),
-    auto_hash=False,
+    auto_hash=True,
 )
 
 # 0.4.x: login() 結果存在 st.session_state，不回傳 tuple
