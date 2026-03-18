@@ -85,6 +85,29 @@ def save_dealers(dealers: list[str]) -> None:
     load_dealers.clear()
 
 
+def add_dealer(name: str) -> tuple[bool, str]:
+    """新增經銷商。回傳 (成功與否, 訊息)。"""
+    name = name.strip()
+    if not name:
+        return False, "名稱不可為空"
+    dealers = load_dealers()
+    if name in dealers:
+        return False, f"「{name}」已存在"
+    dealers.append(name)
+    save_dealers(dealers)
+    return True, f"已新增「{name}」"
+
+
+def remove_dealer(name: str) -> tuple[bool, str]:
+    """刪除經銷商。回傳 (成功與否, 訊息)。"""
+    dealers = load_dealers()
+    if name not in dealers:
+        return False, f"「{name}」不存在"
+    dealers.remove(name)
+    save_dealers(dealers)
+    return True, f"已刪除「{name}」"
+
+
 # ── Part Categories ───────────────────────────────────
 
 @st.cache_data(ttl=300)

@@ -10,7 +10,7 @@ from src.ui_helpers import (
 )
 from src.models import LineItemInput, LineItemResult, QuoteParams, QuoteTotals
 from src.calculator import calculate_line_item, calculate_totals, determine_shipping_display
-from src.db import load_settings, load_dealers, load_part_categories, save_quote, load_quote, quote_number_exists
+from src.db import load_settings, load_dealers, add_dealer, load_part_categories, save_quote, load_quote, quote_number_exists
 from src.export_csv import build_csv_bytes
 from src.export_pdf import build_pdf_bytes
 from config.defaults import (
@@ -139,17 +139,33 @@ with st.expander("報價單資訊", expanded=True):
             key="qf_quote_date", disabled=is_confirmed,
         )
         if customer_type == CUSTOMER_TYPE_DEALER:
+            _MANUAL_OPTION = "其他（手動輸入）"
             dealers_list = load_dealers()
-            if not dealers_list:
+            options = dealers_list + [_MANUAL_OPTION] if dealers_list else []
+
+            # 載入舊報價時，若經銷商已不在名單中，自動切到手動輸入
+            _saved = st.session_state.get("qf_dealer_name", "")
+            if _saved and _saved != _MANUAL_OPTION and _saved not in dealers_list:
+                st.session_state["qf_dealer_name"] = _MANUAL_OPTION
+                st.session_state["qf_dealer_name_manual"] = _saved
+
+            if options:
+                selected = st.selectbox(
+                    "經銷商名稱 *", options,
+                    key="qf_dealer_name", disabled=is_confirmed,
+                )
+                if selected == _MANUAL_OPTION:
+                    dealer_name = st.text_input(
+                        "請輸入經銷商名稱 *",
+                        key="qf_dealer_name_manual", disabled=is_confirmed,
+                    )
+                else:
+                    dealer_name = selected
+            else:
                 st.warning("尚未設定經銷商名單，請至系統設定頁新增。")
                 dealer_name = st.text_input(
                     "經銷商名稱 *",
-                    key="qf_dealer_name", disabled=is_confirmed,
-                )
-            else:
-                dealer_name = st.selectbox(
-                    "經銷商名稱 *", dealers_list,
-                    key="qf_dealer_name", disabled=is_confirmed,
+                    key="qf_dealer_name_manual", disabled=is_confirmed,
                 )
             customer_name = dealer_name
         else:
@@ -376,12 +392,19 @@ def _validate() -> bool:
     return True
 
 
+def _auto_save_dealer():
+    """若為手動輸入的經銷商，自動存入名單。"""
+    if customer_type == CUSTOMER_TYPE_DEALER and dealer_name.strip():
+        add_dealer(dealer_name)  # 重複時自動忽略
+
+
 if not is_confirmed:
     btn1, btn2 = st.columns(2)
     with btn1:
         if st.button("儲存草稿", use_container_width=True):
             if _validate():
                 try:
+                    _auto_save_dealer()
                     qid = save_quote(_build_quote_data(STATUS_DRAFT), _build_line_items_data())
                     st.session_state["quote_id"] = qid
                     st.session_state["quote_status"] = STATUS_DRAFT
@@ -392,6 +415,7 @@ if not is_confirmed:
         if st.button("確認報價", use_container_width=True):
             if _validate():
                 try:
+                    _auto_save_dealer()
                     qid = save_quote(_build_quote_data(STATUS_CONFIRMED), _build_line_items_data())
                     st.session_state["quote_id"] = qid
                     st.session_state["quote_status"] = STATUS_CONFIRMED

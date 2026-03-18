@@ -1,7 +1,8 @@
 import streamlit as st
 from src.ui_helpers import require_login, is_manager
 from src.db import (
-    load_settings, save_settings, load_dealers, save_dealers,
+    load_settings, save_settings, load_dealers,
+    add_dealer, remove_dealer,
     load_part_categories, save_part_categories,
 )
 from config.defaults import (
@@ -19,6 +20,11 @@ if not is_manager():
 
 st.title("系統設定")
 st.caption("修改預設系統參數。此設定影響**所有新建報價單**的預設值。")
+
+# Flash message：在 st.rerun() 後顯示上一輪的操作結果
+if "_flash" in st.session_state:
+    _fl = st.session_state.pop("_flash")
+    getattr(st, _fl["level"])(_fl["msg"])
 
 try:
     db = load_settings()
@@ -100,7 +106,7 @@ with st.form("settings_form"):
                 margin_rate_c=new_margin_c,
                 dealer_coefficient=new_dealer_coeff,
             )
-            st.success("設定已儲存")
+            st.session_state["_flash"] = {"level": "success", "msg": "設定已儲存"}
             st.rerun()
         except Exception as e:
             st.error(f"儲存失敗：{e}")
@@ -116,38 +122,28 @@ except Exception as e:
     dealers = []
 
 st.caption(f"目前共 {len(dealers)} 家經銷商")
-for i, d in enumerate(dealers):
-    st.text(f"  {i+1}. {d}")
+
+for d in dealers:
+    col_name, col_btn = st.columns([5, 1])
+    col_name.text(d)
+    if col_btn.button("刪除", key=f"del_dealer_{d}"):
+        ok, msg = remove_dealer(d)
+        if ok:
+            st.session_state["_flash"] = {"level": "success", "msg": msg}
+            st.rerun()
+        else:
+            st.error(msg)
 
 with st.form("dealer_form"):
-    st.markdown("**新增經銷商**")
-    new_dealer = st.text_input("經銷商名稱")
-    add_submitted = st.form_submit_button("新增")
-    if add_submitted and new_dealer.strip():
-        if new_dealer.strip() in dealers:
-            st.error(f"「{new_dealer.strip()}」已存在")
-        else:
-            dealers.append(new_dealer.strip())
-            try:
-                save_dealers(dealers)
-                st.success(f"已新增「{new_dealer.strip()}」")
+    new_dealer = st.text_input("新增經銷商名稱")
+    if st.form_submit_button("新增", type="primary"):
+        if new_dealer.strip():
+            ok, msg = add_dealer(new_dealer)
+            if ok:
+                st.session_state["_flash"] = {"level": "success", "msg": msg}
                 st.rerun()
-            except Exception as e:
-                st.error(f"新增失敗：{e}")
-
-if dealers:
-    with st.form("dealer_delete_form"):
-        st.markdown("**刪除經銷商**")
-        del_dealer = st.selectbox("選擇要刪除的經銷商", dealers)
-        del_submitted = st.form_submit_button("刪除")
-        if del_submitted and del_dealer:
-            dealers.remove(del_dealer)
-            try:
-                save_dealers(dealers)
-                st.success(f"已刪除「{del_dealer}」")
-                st.rerun()
-            except Exception as e:
-                st.error(f"刪除失敗：{e}")
+            else:
+                st.error(msg)
 
 # ── 零件分類說明維護 ───────────────────────────────────────────
 st.divider()
@@ -166,7 +162,7 @@ with st.form("category_form"):
     if cat_submitted:
         try:
             save_part_categories(new_labels)
-            st.success("分類說明已儲存")
+            st.session_state["_flash"] = {"level": "success", "msg": "分類說明已儲存"}
             st.rerun()
         except Exception as e:
             st.error(f"儲存失敗：{e}")
