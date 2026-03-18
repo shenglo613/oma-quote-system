@@ -1,6 +1,7 @@
 import csv
 import io
 from src.models import LineItemInput, LineItemResult, QuoteParams, QuoteTotals
+from config.defaults import SHIPPING_INCLUDED
 
 
 def build_csv_bytes(
@@ -27,7 +28,12 @@ def build_csv_bytes(
         "台幣成本", "關稅", "到岸成本",
         "毛利率", "零件售價", "保底觸發",
         "工資", "小計",
+        "運費狀態", "經銷商名稱", "經銷商價格",
     ])
+
+    shipping_display = quote_meta.get("shipping_display", SHIPPING_INCLUDED)
+    dealer_name = quote_meta.get("dealer_name", "")
+    dealer_price = quote_meta.get("dealer_price", 0)
 
     # 明細行
     for inp, res in zip(inputs, results):
@@ -57,6 +63,9 @@ def build_csv_bytes(
             "是" if res.floor_applied else "否",
             res.labor_cost,
             res.subtotal,
+            shipping_display,
+            dealer_name,
+            dealer_price if dealer_price else "",
         ])
 
     # 合計行
@@ -72,6 +81,8 @@ def build_csv_bytes(
         "",                                           # 22: 保底觸發
         totals.total_labor,                           # 23: 工資
         totals.grand_total,                           # 24: 小計
+        "", "",                                       # 25-26: 運費狀態/經銷商名稱
+        totals.dealer_price if totals.dealer_price else "",  # 27: 經銷商價格
     ])
 
     # UTF-8 BOM

@@ -12,6 +12,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 import io
 
 from src.models import LineItemInput, LineItemResult, QuoteParams, QuoteTotals
+from config.defaults import COMPANY_NAME
 
 FONT_PATH = Path(__file__).parent.parent / "assets" / "fonts" / "NotoSansTC-Regular.ttf"
 FONT_NAME = "NotoSansTC"
@@ -65,11 +66,12 @@ def build_pdf_bytes(
     story = []
 
     # ── 抬頭 ──
-    story.append(Paragraph("歐馬股份有限公司", title_style))
+    story.append(Paragraph(COMPANY_NAME, title_style))
     story.append(Paragraph("零件報價單", h2))
     story.append(Spacer(1, 4 * mm))
 
     # ── 報價單資訊 ──
+    shipping_display = quote_meta.get("shipping_display", "含運費")
     info_data = [
         ["報價單號", quote_meta.get("quote_number", ""),
          "報價日期", str(quote_meta.get("quote_date", ""))],
@@ -77,6 +79,7 @@ def build_pdf_bytes(
          "客戶名稱", quote_meta.get("customer_name", "")],
         ["幣別", quote_meta.get("currency", ""),
          "匯率", str(params.exchange_rate)],
+        ["運費狀態", shipping_display, "", ""],
     ]
     info_table = Table(info_data, colWidths=[30 * mm, 55 * mm, 30 * mm, 55 * mm])
     info_table.setStyle(TableStyle([
@@ -109,7 +112,7 @@ def build_pdf_bytes(
             f"{res.landed_cost:,.0f}",
             f"{res.margin_rate:.0%}",
             f"{res.part_price:,.0f}",
-            "⚠" if res.floor_applied else "",
+            "!" if res.floor_applied else "",
             f"{inp.labor_hours}",
             f"{res.labor_cost:,.0f}",
             f"{res.subtotal:,.0f}",
@@ -138,8 +141,15 @@ def build_pdf_bytes(
         ["運費合計", f"NT$ {totals.total_freight:,.0f}",
          "總報價", f"NT$ {totals.grand_total:,.0f}"],
     ]
+    # 經銷商價格
+    dealer_price = quote_meta.get("dealer_price", 0)
+    if dealer_price:
+        total_data.append(
+            ["經銷商價格", f"NT$ {dealer_price:,.0f}", "", ""]
+        )
+
     total_table = Table(total_data, colWidths=[30 * mm, 55 * mm, 30 * mm, 55 * mm])
-    total_table.setStyle(TableStyle([
+    total_style = [
         ("FONTNAME", (0, 0), (-1, -1), FONT_NAME),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("BACKGROUND", (0, 0), (0, -1), colors.lightgrey),
@@ -151,7 +161,8 @@ def build_pdf_bytes(
         ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
+    ]
+    total_table.setStyle(TableStyle(total_style))
     story.append(total_table)
 
     # ── 備註 ──

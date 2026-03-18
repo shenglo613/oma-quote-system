@@ -1,17 +1,18 @@
 import streamlit as st
 import pandas as pd
-from src.ui_helpers import require_login
+from src.ui_helpers import require_login, clear_quote_form
 from src.db import list_quotes, load_quote
+from config.defaults import STATUS_DRAFT, STATUS_CONFIRMED, SHIPPING_INCLUDED
 
 st.set_page_config(page_title="報價記錄 — OMA", layout="wide")
 require_login()
 
-st.title("📂 報價記錄")
+st.title("報價記錄")
 
 # ── 篩選列 ──────────────────────────────────────────────────
 f1, f2 = st.columns(2)
 with f1:
-    filter_status = st.selectbox("狀態", ["全部", "草稿", "已確認"])
+    filter_status = st.selectbox("狀態", ["全部", STATUS_DRAFT, STATUS_CONFIRMED])
 with f2:
     filter_customer = st.text_input("客戶名稱（模糊搜尋）")
 
@@ -53,11 +54,18 @@ if not full:
     st.stop()
 
 # 基本資訊
-info_cols = st.columns(4)
+info_cols = st.columns(5)
 info_cols[0].metric("報價單號", full["quote_number"])
 info_cols[1].metric("日期",     str(full["quote_date"]))
 info_cols[2].metric("客戶名稱", full["customer_name"])
 info_cols[3].metric("狀態",     full["status"])
+info_cols[4].metric("運費狀態", full.get("shipping_display", SHIPPING_INCLUDED))
+
+if full.get("dealer_name"):
+    dc1, dc2 = st.columns(2)
+    dc1.metric("經銷商", full["dealer_name"])
+    if full.get("dealer_price"):
+        dc2.metric("經銷商價格", f"NT$ {full['dealer_price']:,.0f}")
 
 # 明細
 if full.get("line_items"):
@@ -80,14 +88,10 @@ if full.get("line_items"):
 
 # 操作按鈕：草稿可跳轉編輯，已確認只能查看
 st.divider()
-if full["status"] == "草稿":
-    if st.button("✏️ 編輯此草稿", type="primary"):
+if full["status"] == STATUS_DRAFT:
+    if st.button("編輯此草稿", type="primary"):
         st.session_state["load_quote_id"] = full["id"]
-        # 清除舊的 quote form session state，讓載入觸發器正常工作
-        for key in ["quote_id", "quote_status", "line_items",
-                    "qf_quote_number", "qf_customer_type", "qf_customer_name",
-                    "qf_currency", "qf_exchange_rate", "qf_notes", "qf_quote_date"]:
-            st.session_state.pop(key, None)
+        clear_quote_form()
         st.switch_page("pages/1_報價單.py")
 else:
     st.info("已確認報價單不可再編輯。")

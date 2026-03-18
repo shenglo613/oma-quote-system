@@ -1,10 +1,19 @@
 import streamlit as st
 import pandas as pd
-from src.models import LineItemInput, LineItemResult, QuoteParams
-from config.defaults import PART_CATEGORIES, PROCUREMENT_METHODS, CURRENCIES
+from src.models import LineItemInput, LineItemResult
+from config.defaults import PART_CATEGORIES, PROCUREMENT_METHODS, ROLE_MANAGER
+
+# 報價單表單的 session state key，用於清除 / 重置
+QUOTE_FORM_KEYS = [
+    "quote_id", "quote_status", "line_items",
+    "qf_quote_number", "qf_customer_type", "qf_customer_name",
+    "qf_currency", "qf_exchange_rate", "qf_notes", "qf_quote_date",
+    "qf_dealer_name", "qf_include_air_freight",
+    "line_item_editor",
+]
 
 
-def require_login():
+def require_login() -> None:
     """若未登入，中止頁面執行"""
     if not st.session_state.get("username"):
         st.warning("請先登入")
@@ -13,6 +22,16 @@ def require_login():
 
 def get_role() -> str:
     return st.session_state.get("role", "staff")
+
+
+def is_manager() -> bool:
+    return get_role() == ROLE_MANAGER
+
+
+def clear_quote_form() -> None:
+    """清除報價單表單所有 session state"""
+    for key in QUOTE_FORM_KEYS:
+        st.session_state.pop(key, None)
 
 
 def build_input_df(items: list[LineItemInput]) -> pd.DataFrame:
@@ -52,7 +71,7 @@ def compute_results_df(results: list[LineItemResult]) -> pd.DataFrame:
             "到岸成本": f"{r.landed_cost:,.0f}",
             "毛利率": f"{r.margin_rate:.0%}",
             "零件售價": f"{r.part_price:,.0f}",
-            "⚠保底": "是" if r.floor_applied else "",
+            "保底": "是" if r.floor_applied else "",
             "工資": f"{r.labor_cost:,.0f}",
             "小計": f"{r.subtotal:,.0f}",
         })

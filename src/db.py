@@ -1,8 +1,11 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
+import json
 import streamlit as st
 from supabase import create_client, Client
+
+from config.defaults import STATUS_CONFIRMED
 
 
 @st.cache_resource
@@ -20,19 +23,66 @@ def load_settings() -> dict[str, float]:
     """從 Supabase 讀取系統參數，回傳 {key: float}；快取 5 分鐘"""
     client = get_client()
     rows = client.table("settings").select("key, value").execute().data
-    return {row["key"]: float(row["value"]) for row in rows}
+    result = {}
+    for row in rows:
+        key = row["key"]
+        val = row["value"]
+        if key == "dealers":
+            continue  # dealers 由 load_dealers 處理
+        try:
+            result[key] = float(val)
+        except (ValueError, TypeError):
+            pass
+    return result
 
 
-def save_settings(tax_rate: float, labor_rate: float, min_profit: float) -> None:
+def save_settings(
+    tax_rate: float,
+    labor_rate: float,
+    min_profit: float,
+    margin_rate_a: float,
+    margin_rate_b: float,
+    margin_rate_c: float,
+    dealer_coefficient: float,
+) -> None:
     client = get_client()
     updates = [
-        {"key": "tax_rate",   "value": str(tax_rate)},
-        {"key": "labor_rate", "value": str(labor_rate)},
-        {"key": "min_profit", "value": str(min_profit)},
+        {"key": "tax_rate",           "value": str(tax_rate)},
+        {"key": "labor_rate",         "value": str(labor_rate)},
+        {"key": "min_profit",         "value": str(min_profit)},
+        {"key": "margin_rate_a",      "value": str(margin_rate_a)},
+        {"key": "margin_rate_b",      "value": str(margin_rate_b)},
+        {"key": "margin_rate_c",      "value": str(margin_rate_c)},
+        {"key": "dealer_coefficient", "value": str(dealer_coefficient)},
     ]
     for u in updates:
-        client.table("settings").upsert(u).execute()
-    load_settings.clear()  # 存完立即清快取，下次載入拿到最新值
+        client.table("settings").upsert(u, on_conflict="key").execute()
+    load_settings.clear()
+
+
+# ── Dealers ───────────────────────────────────────────
+
+@st.cache_data(ttl=300)
+def load_dealers() -> list[str]:
+    """從 settings 表讀取經銷商名單"""
+    client = get_client()
+    rows = client.table("settings").select("value").eq("key", "dealers").execute().data
+    if rows:
+        try:
+            return json.loads(rows[0]["value"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    from config.defaults import DEALERS
+    return DEALERS
+
+
+def save_dealers(dealers: list[str]) -> None:
+    client = get_client()
+    client.table("settings").upsert(
+        {"key": "dealers", "value": json.dumps(dealers, ensure_ascii=False)},
+        on_conflict="key",
+    ).execute()
+    load_dealers.clear()
 
 
 # ── Quotes ────────────────────────────────────────────
@@ -49,7 +99,7 @@ def save_quote(quote_data: dict, line_items: list[dict]) -> str:
         # 更新：先確認現有狀態，禁止覆寫已確認單
         quote_id = quote_data["id"]
         existing = client.table("quotes").select("status").eq("id", quote_id).execute()
-        if existing.data and existing.data[0].get("status") == "已確認":
+        if existing.data and existing.data[0].get("status") == STATUS_CONFIRMED:
             raise ValueError("已確認的報價單不可修改")
         update_payload = {k: v for k, v in quote_data.items() if k != "id"}
         update_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -109,7 +159,7 @@ def list_quotes(
 
 def confirm_quote(quote_id: str) -> None:
     """將報價單狀態改為已確認"""
-    get_client().table("quotes").update({"status": "已確認"}).eq("id", quote_id).execute()
+    get_client().table("quotes").update({"status": STATUS_CONFIRMED}).eq("id", quote_id).execute()
 
 
 def quote_number_exists(quote_number: str) -> bool:

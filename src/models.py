@@ -1,4 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from config.defaults import (
+    TAX_RATE, LABOR_RATE, MIN_PROFIT,
+    MARGIN_RATE_A, MARGIN_RATE_B, MARGIN_RATE_C,
+)
 
 
 @dataclass
@@ -30,10 +35,13 @@ class LineItemResult:
 class QuoteParams:
     """報價單計算參數（快照用）"""
     exchange_rate: float = 1.0
-    tax_rate: float = 0.15
-    labor_rate: float = 1200.0
-    min_profit: float = 5000.0
-    customer_type: str = "終端客戶"
+    tax_rate: float = field(default=TAX_RATE)
+    labor_rate: float = field(default=LABOR_RATE)
+    min_profit: float = field(default=MIN_PROFIT)
+    margin_rate_a: float = field(default=MARGIN_RATE_A)
+    margin_rate_b: float = field(default=MARGIN_RATE_B)
+    margin_rate_c: float = field(default=MARGIN_RATE_C)
+    include_air_freight: bool = True
 
 
 @dataclass
@@ -43,3 +51,4 @@ class QuoteTotals:
     total_labor: float = 0.0
     total_freight: float = 0.0
     grand_total: float = 0.0
+    dealer_price: float = 0.0
