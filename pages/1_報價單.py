@@ -10,7 +10,7 @@ from src.ui_helpers import (
 )
 from src.models import LineItemInput, LineItemResult, QuoteParams, QuoteTotals
 from src.calculator import calculate_line_item, calculate_totals, determine_shipping_display
-from src.db import load_settings, load_dealers, save_quote, load_quote, quote_number_exists
+from src.db import load_settings, load_dealers, load_part_categories, save_quote, load_quote, quote_number_exists
 from src.export_csv import build_csv_bytes
 from src.export_pdf import build_pdf_bytes
 from config.defaults import (
@@ -163,6 +163,7 @@ with st.expander("報價單資訊", expanded=True):
 # ══════════════════════════════════════════
 with st.expander("系統參數", expanded=False):
     db_settings = load_settings()
+    cat_labels = load_part_categories()
     params_disabled = is_confirmed or not is_manager()
 
     st.markdown("**毛利率設定**（依零件分類）")
@@ -172,18 +173,21 @@ with st.expander("系統參數", expanded=False):
     _mr_c = st.session_state.pop("loaded_margin_c", db_settings.get("margin_rate_c", MARGIN_RATE_C))
     mc1, mc2, mc3 = st.columns(3)
     with mc1:
+        st.caption(f"**A** — {cat_labels.get('A', '')}")
         margin_rate_a = st.number_input(
             "分類 A 毛利率", value=_mr_a,
             min_value=0.0, max_value=0.99, step=0.01, format="%.2f",
             disabled=params_disabled,
         )
     with mc2:
+        st.caption(f"**B** — {cat_labels.get('B', '')}")
         margin_rate_b = st.number_input(
             "分類 B 毛利率", value=_mr_b,
             min_value=0.0, max_value=0.99, step=0.01, format="%.2f",
             disabled=params_disabled,
         )
     with mc3:
+        st.caption(f"**C** — {cat_labels.get('C', '')}")
         margin_rate_c = st.number_input(
             "分類 C 毛利率", value=_mr_c,
             min_value=0.0, max_value=0.99, step=0.01, format="%.2f",
@@ -239,6 +243,8 @@ params = QuoteParams(
 # SECTION 4：明細表
 # ══════════════════════════════════════════
 st.subheader("明細")
+_cat_help = " ／ ".join(f"**{c}**: {cat_labels.get(c, '')}" for c in PART_CATEGORIES)
+st.caption(f"分類說明：{_cat_help}")
 
 input_df = build_input_df(st.session_state["line_items"])
 

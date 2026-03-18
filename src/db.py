@@ -85,6 +85,31 @@ def save_dealers(dealers: list[str]) -> None:
     load_dealers.clear()
 
 
+# ── Part Categories ───────────────────────────────────
+
+@st.cache_data(ttl=300)
+def load_part_categories() -> dict[str, str]:
+    """從 settings 表讀取零件分類標籤，回傳 {code: label}"""
+    client = get_client()
+    rows = client.table("settings").select("value").eq("key", "part_categories").execute().data
+    if rows:
+        try:
+            return json.loads(rows[0]["value"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    from config.defaults import PART_CATEGORY_LABELS
+    return PART_CATEGORY_LABELS
+
+
+def save_part_categories(categories: dict[str, str]) -> None:
+    client = get_client()
+    client.table("settings").upsert(
+        {"key": "part_categories", "value": json.dumps(categories, ensure_ascii=False)},
+        on_conflict="key",
+    ).execute()
+    load_part_categories.clear()
+
+
 # ── Quotes ────────────────────────────────────────────
 
 def save_quote(quote_data: dict, line_items: list[dict]) -> str:

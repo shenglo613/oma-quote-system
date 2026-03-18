@@ -1,6 +1,9 @@
 import streamlit as st
 from src.ui_helpers import require_login, is_manager
-from src.db import load_settings, save_settings, load_dealers, save_dealers
+from src.db import (
+    load_settings, save_settings, load_dealers, save_dealers,
+    load_part_categories, save_part_categories,
+)
 from config.defaults import (
     TAX_RATE, LABOR_RATE, MIN_PROFIT,
     MARGIN_RATE_A, MARGIN_RATE_B, MARGIN_RATE_C,
@@ -23,24 +26,33 @@ except Exception as e:
     st.error(f"讀取系統設定失敗：{e}")
     st.stop()
 
+try:
+    cat_labels = load_part_categories()
+except Exception:
+    from config.defaults import PART_CATEGORY_LABELS
+    cat_labels = PART_CATEGORY_LABELS
+
 # ── 系統參數設定 ──────────────────────────────────────────────
 with st.form("settings_form"):
     st.subheader("毛利率（依零件分類）")
     st.caption("售價公式：售價 = 到岸成本 ÷ (1 - 毛利率)")
     mc1, mc2, mc3 = st.columns(3)
     with mc1:
+        st.caption(f"**A** — {cat_labels.get('A', '')}")
         new_margin_a = st.number_input(
             "分類 A 毛利率",
             value=db.get("margin_rate_a", MARGIN_RATE_A),
             min_value=0.0, max_value=0.99, step=0.01, format="%.2f",
         )
     with mc2:
+        st.caption(f"**B** — {cat_labels.get('B', '')}")
         new_margin_b = st.number_input(
             "分類 B 毛利率",
             value=db.get("margin_rate_b", MARGIN_RATE_B),
             min_value=0.0, max_value=0.99, step=0.01, format="%.2f",
         )
     with mc3:
+        st.caption(f"**C** — {cat_labels.get('C', '')}")
         new_margin_c = st.number_input(
             "分類 C 毛利率",
             value=db.get("margin_rate_c", MARGIN_RATE_C),
@@ -136,3 +148,25 @@ if dealers:
                 st.rerun()
             except Exception as e:
                 st.error(f"刪除失敗：{e}")
+
+# ── 零件分類說明維護 ───────────────────────────────────────────
+st.divider()
+st.subheader("零件分類說明")
+st.caption("設定各分類的說明文字，方便報價時識別。")
+
+with st.form("category_form"):
+    new_labels = {}
+    for code in ["A", "B", "C"]:
+        new_labels[code] = st.text_input(
+            f"分類 {code} 說明",
+            value=cat_labels.get(code, ""),
+            placeholder=f"例：分類 {code} 的說明文字",
+        )
+    cat_submitted = st.form_submit_button("儲存分類說明", type="primary")
+    if cat_submitted:
+        try:
+            save_part_categories(new_labels)
+            st.success("分類說明已儲存")
+            st.rerun()
+        except Exception as e:
+            st.error(f"儲存失敗：{e}")
