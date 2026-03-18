@@ -12,6 +12,8 @@ def calculate_line_item(item: LineItemInput, params: QuoteParams) -> LineItemRes
     if item.part_category not in margin_rates:
         raise ValueError(f"未知零件分類：{item.part_category!r}")
     margin_rate = margin_rates[item.part_category]
+    if margin_rate < 0:
+        raise ValueError(f"毛利率不可為負數：{margin_rate}")
     if margin_rate >= 1.0:
         raise ValueError(f"毛利率不可 >= 100%：{margin_rate}")
 
@@ -34,7 +36,7 @@ def calculate_line_item(item: LineItemInput, params: QuoteParams) -> LineItemRes
     raw_price = landed_cost / (1 - margin_rate)
     part_profit = raw_price - landed_cost
 
-    if part_profit < params.min_profit:
+    if landed_cost > 0 and part_profit < params.min_profit:
         part_price = landed_cost + params.min_profit
         floor_applied = True
     else:
@@ -75,6 +77,8 @@ def calculate_totals(
     dealer_coefficient: float = 0.0,
     include_air_freight: bool = True,
 ) -> QuoteTotals:
+    if dealer_coefficient < 0:
+        raise ValueError(f"經銷商係數不可為負數：{dealer_coefficient}")
     grand_total = round(sum(r.subtotal for r in results), 2)
     return QuoteTotals(
         total_parts=round(sum(r.part_price for r in results), 2),

@@ -9,6 +9,8 @@ QUOTE_FORM_KEYS = [
     "qf_quote_number", "qf_customer_type", "qf_customer_name",
     "qf_currency", "qf_exchange_rate", "qf_notes", "qf_quote_date",
     "qf_dealer_name", "qf_include_air_freight",
+    "qf_tax_rate", "qf_labor_rate", "qf_min_profit", "qf_dealer_coefficient",
+    "qf_margin_rate_a", "qf_margin_rate_b", "qf_margin_rate_c",
     "line_item_editor",
 ]
 

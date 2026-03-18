@@ -182,12 +182,9 @@ def list_quotes(
     return q.execute().data
 
 
-def confirm_quote(quote_id: str) -> None:
-    """將報價單狀態改為已確認"""
-    get_client().table("quotes").update({"status": STATUS_CONFIRMED}).eq("id", quote_id).execute()
-
-
-def quote_number_exists(quote_number: str) -> bool:
-    """檢查報價單號是否已存在"""
-    res = get_client().table("quotes").select("id").eq("quote_number", quote_number).execute()
-    return len(res.data) > 0
+def quote_number_exists(quote_number: str, exclude_id: str | None = None) -> bool:
+    """檢查報價單號是否已存在（可排除指定 ID）"""
+    q = get_client().table("quotes").select("id").eq("quote_number", quote_number)
+    if exclude_id:
+        q = q.neq("id", exclude_id)
+    return len(q.execute().data) > 0

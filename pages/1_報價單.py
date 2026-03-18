@@ -65,11 +65,19 @@ if "load_quote_id" in st.session_state:
         st.session_state["qf_quote_date"]    = date.fromisoformat(str(loaded["quote_date"]))
         st.session_state["qf_dealer_name"]   = loaded.get("dealer_name", "")
         st.session_state["qf_include_air_freight"] = loaded.get("include_air_freight", True)
-        # 還原報價時的毛利率快照
+        # 還原報價時的系統參數快照
         if loaded.get("margin_rate_a") is not None:
-            st.session_state["loaded_margin_a"] = float(loaded["margin_rate_a"])
-            st.session_state["loaded_margin_b"] = float(loaded["margin_rate_b"])
-            st.session_state["loaded_margin_c"] = float(loaded["margin_rate_c"])
+            st.session_state["qf_margin_rate_a"] = float(loaded["margin_rate_a"])
+            st.session_state["qf_margin_rate_b"] = float(loaded["margin_rate_b"])
+            st.session_state["qf_margin_rate_c"] = float(loaded["margin_rate_c"])
+        if loaded.get("tax_rate") is not None:
+            st.session_state["qf_tax_rate"] = float(loaded["tax_rate"])
+        if loaded.get("labor_rate") is not None:
+            st.session_state["qf_labor_rate"] = float(loaded["labor_rate"])
+        if loaded.get("min_profit") is not None:
+            st.session_state["qf_min_profit"] = float(loaded["min_profit"])
+        if loaded.get("dealer_coefficient") is not None:
+            st.session_state["qf_dealer_coefficient"] = float(loaded["dealer_coefficient"])
         if loaded.get("line_items"):
             st.session_state["line_items"] = [
                 LineItemInput(
@@ -167,31 +175,27 @@ with st.expander("系統參數", expanded=False):
     params_disabled = is_confirmed or not is_manager()
 
     st.markdown("**毛利率設定**（依零件分類）")
-    # 載入舊報價時，優先使用該報價快照的毛利率
-    _mr_a = st.session_state.pop("loaded_margin_a", db_settings.get("margin_rate_a", MARGIN_RATE_A))
-    _mr_b = st.session_state.pop("loaded_margin_b", db_settings.get("margin_rate_b", MARGIN_RATE_B))
-    _mr_c = st.session_state.pop("loaded_margin_c", db_settings.get("margin_rate_c", MARGIN_RATE_C))
     mc1, mc2, mc3 = st.columns(3)
     with mc1:
         st.caption(f"**A** — {cat_labels.get('A', '')}")
         margin_rate_a = st.number_input(
-            "分類 A 毛利率", value=_mr_a,
+            "分類 A 毛利率", value=db_settings.get("margin_rate_a", MARGIN_RATE_A),
             min_value=0.0, max_value=0.99, step=0.01, format="%.2f",
-            disabled=params_disabled,
+            disabled=params_disabled, key="qf_margin_rate_a",
         )
     with mc2:
         st.caption(f"**B** — {cat_labels.get('B', '')}")
         margin_rate_b = st.number_input(
-            "分類 B 毛利率", value=_mr_b,
+            "分類 B 毛利率", value=db_settings.get("margin_rate_b", MARGIN_RATE_B),
             min_value=0.0, max_value=0.99, step=0.01, format="%.2f",
-            disabled=params_disabled,
+            disabled=params_disabled, key="qf_margin_rate_b",
         )
     with mc3:
         st.caption(f"**C** — {cat_labels.get('C', '')}")
         margin_rate_c = st.number_input(
-            "分類 C 毛利率", value=_mr_c,
+            "分類 C 毛利率", value=db_settings.get("margin_rate_c", MARGIN_RATE_C),
             min_value=0.0, max_value=0.99, step=0.01, format="%.2f",
-            disabled=params_disabled,
+            disabled=params_disabled, key="qf_margin_rate_c",
         )
 
     st.markdown("**其他參數**")
@@ -200,23 +204,25 @@ with st.expander("系統參數", expanded=False):
         tax_rate = st.number_input(
             "關稅率", value=db_settings.get("tax_rate", TAX_RATE),
             min_value=0.0, max_value=1.0, step=0.01, format="%.2f",
-            disabled=params_disabled,
+            disabled=params_disabled, key="qf_tax_rate",
         )
     with pc2:
         labor_rate = st.number_input(
             "工資單價（NT$/hr）", value=db_settings.get("labor_rate", LABOR_RATE),
             min_value=0.0, step=100.0, disabled=params_disabled,
+            key="qf_labor_rate",
         )
     with pc3:
         min_profit = st.number_input(
             "最低毛利保底（NT$）", value=db_settings.get("min_profit", MIN_PROFIT),
             min_value=0.0, step=500.0, disabled=params_disabled,
+            key="qf_min_profit",
         )
     with pc4:
         dealer_coefficient = st.number_input(
             "經銷商係數", value=db_settings.get("dealer_coefficient", DEALER_COEFFICIENT),
             min_value=0.0, max_value=1.0, step=0.01, format="%.2f",
-            disabled=params_disabled,
+            disabled=params_disabled, key="qf_dealer_coefficient",
         )
 
 # ══════════════════════════════════════════
@@ -338,7 +344,7 @@ def _build_line_items_data() -> list[dict]:
             "part_category":      inp.part_category,
             "procurement_method": inp.procurement_method,
             "cost_foreign":       inp.cost_foreign,
-            "freight_twd":        inp.freight_twd if inp.procurement_method != PROC_INVENTORY else 0,
+            "freight_twd":        inp.freight_twd,
             "labor_hours":        inp.labor_hours,
             "cost_twd":           res.cost_twd,
             "tariff":             res.tariff,
@@ -364,7 +370,7 @@ def _validate() -> bool:
     if not any(inp.part_name.strip() for inp in inputs):
         st.error("請至少填寫一筆有名稱的零件明細")
         return False
-    if not st.session_state["quote_id"] and quote_number_exists(quote_number):
+    if quote_number_exists(quote_number, exclude_id=st.session_state["quote_id"]):
         st.error(f"報價單號 {quote_number!r} 已存在，請使用不同的編號")
         return False
     return True

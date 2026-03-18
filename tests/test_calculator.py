@@ -80,6 +80,11 @@ class TestInvalidInput:
         with pytest.raises(ValueError, match="毛利率不可"):
             calculate_line_item(item, make_params(margin_rate_b=1.5))
 
+    def test_negative_margin_rate_raises(self):
+        item = LineItemInput(part_category="A")
+        with pytest.raises(ValueError, match="毛利率不可為負數"):
+            calculate_line_item(item, make_params(margin_rate_a=-0.1))
+
 
 # ── 售價公式 ──────────────────────────────────────────────────
 
@@ -112,6 +117,15 @@ class TestPriceFormula:
         assert result.cost_twd == 0.0
         assert result.landed_cost == 0.0
         assert result.part_price == 0.0
+
+    def test_zero_cost_floor_not_triggered(self):
+        """零成本零件不應觸發保底機制（空白行不灌入 NT$5,000）"""
+        item = LineItemInput(part_category="A", procurement_method="海運",
+                             cost_foreign=0, freight_twd=0, labor_hours=0)
+        result = calculate_line_item(item, make_params(min_profit=5000.0))
+        assert result.floor_applied is False
+        assert result.part_price == 0.0
+        assert result.part_profit == 0.0
 
 
 # ── 成本計算 ──────────────────────────────────────────────────
@@ -282,6 +296,12 @@ class TestTotals:
         totals = calculate_totals(results, inputs, dealer_coefficient=coeff)
         assert totals.dealer_price == pytest.approx(expected)
 
+    def test_negative_dealer_coefficient_raises(self):
+        results = [LineItemResult(subtotal=10000)]
+        inputs = [LineItemInput()]
+        with pytest.raises(ValueError, match="經銷商係數不可為負數"):
+            calculate_totals(results, inputs, dealer_coefficient=-0.5)
+
     def test_empty_inputs(self):
         """空的明細列表 → 所有合計為 0"""
         totals = calculate_totals([], [])
@@ -369,3 +389,46 @@ class TestShippingDisplay:
         """空明細 → 含運費"""
         assert determine_shipping_display([], True) == "含運費"
         assert determine_shipping_display([], False) == "含運費"
+
+
+# ── 整合測試 ──────────────────────────────────────────────────
+
+class TestIntegration:
+    def test_line_items_to_totals(self):
+        """完整流程：calculate_line_item → calculate_totals"""
+        params = make_params()
+        items = [
+            LineItemInput(part_name="A件", part_category="A",
+                          procurement_method="海運", cost_foreign=100,
+                          freight_twd=500, labor_hours=1.0),
+            LineItemInput(part_name="B件", part_category="B",
+                          procurement_method="空運", cost_foreign=200,
+                          freight_twd=300, labor_hours=2.0),
+        ]
+        results = [calculate_line_item(i, params) for i in items]
+        totals = calculate_totals(results, items, dealer_coefficient=0.75,
+                                  include_air_freight=True)
+        assert totals.total_parts == pytest.approx(sum(r.part_price for r in results))
+        assert totals.total_labor == pytest.approx(sum(r.labor_cost for r in results))
+        assert totals.grand_total == pytest.approx(sum(r.subtotal for r in results))
+        assert totals.grand_total == pytest.approx(totals.total_parts + totals.total_labor)
+        assert totals.dealer_price == pytest.approx(totals.grand_total * 0.75)
+        assert totals.total_freight == pytest.approx(800.0)
+
+    def test_line_items_to_totals_air_excluded(self):
+        """整合測試：空運費不計入"""
+        params = make_params(include_air_freight=False)
+        items = [
+            LineItemInput(part_name="海運件", part_category="A",
+                          procurement_method="海運", cost_foreign=100,
+                          freight_twd=500, labor_hours=0),
+            LineItemInput(part_name="空運件", part_category="A",
+                          procurement_method="空運", cost_foreign=100,
+                          freight_twd=300, labor_hours=0),
+        ]
+        results = [calculate_line_item(i, params) for i in items]
+        totals = calculate_totals(results, items, include_air_freight=False)
+        # 空運運費不計入合計
+        assert totals.total_freight == pytest.approx(500.0)
+        # 空運件的 landed_cost 不含運費
+        assert results[1].landed_cost == pytest.approx(3450.0)  # 無 300 運費

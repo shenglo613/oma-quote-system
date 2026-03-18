@@ -77,13 +77,17 @@ if full.get("line_items"):
         "landed_cost", "margin_rate", "part_price",
         "floor_applied", "labor_cost", "subtotal",
     ]
-    items_df = items_df[[c for c in display_cols if c in items_df.columns]]
-    items_df.columns = [
-        "零件名稱", "分類", "取得方式",
-        "外幣成本", "運費", "工時",
-        "到岸成本", "毛利率", "零件售價",
-        "保底", "工資", "小計",
-    ]
+    col_name_map = {
+        "part_name": "零件名稱", "part_category": "分類",
+        "procurement_method": "取得方式",
+        "cost_foreign": "外幣成本", "freight_twd": "運費",
+        "labor_hours": "工時", "landed_cost": "到岸成本",
+        "margin_rate": "毛利率", "part_price": "零件售價",
+        "floor_applied": "保底", "labor_cost": "工資",
+        "subtotal": "小計",
+    }
+    present_cols = [c for c in display_cols if c in items_df.columns]
+    items_df = items_df[present_cols].rename(columns=col_name_map)
     st.dataframe(items_df, use_container_width=True, hide_index=True)
 
 # 操作按鈕：草稿可跳轉編輯，已確認只能查看

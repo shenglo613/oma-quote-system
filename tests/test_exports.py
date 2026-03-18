@@ -55,6 +55,11 @@ def _parse_csv(data: bytes) -> list[list[str]]:
     return list(csv.reader(io.StringIO(text)))
 
 
+def _csv_row_as_dict(rows: list[list[str]], row_idx: int) -> dict[str, str]:
+    """用 header 行將指定列轉為 dict，不靠硬編碼索引"""
+    return dict(zip(rows[0], rows[row_idx]))
+
+
 # ── CSV 基本結構 ──────────────────────────────────────────────
 
 class TestCsvStructure:
@@ -189,6 +194,31 @@ class TestCsvMultipleItems:
         assert len(rows) == 5
         assert rows[1][11] == "零件A"
         assert rows[2][11] == "零件B"
+
+
+# ── CSV Header-Based 驗證 ─────────────────────────────────────
+
+class TestCsvHeaderBased:
+    def test_detail_row_by_header_lookup(self):
+        rows = _parse_csv(build_csv_bytes(*_make_fixtures()))
+        detail = _csv_row_as_dict(rows, 1)
+        assert detail["零件名稱"] == "零件A"
+        assert detail["保底觸發"] == "是"
+        assert detail["運費狀態"] == "含運費"
+
+    def test_margin_rate_format_percentage(self):
+        """毛利率欄位應為 '30%' 格式"""
+        rows = _parse_csv(build_csv_bytes(*_make_fixtures()))
+        detail = _csv_row_as_dict(rows, 1)
+        assert detail["毛利率"] == "30%"
+
+    def test_totals_by_header_lookup(self):
+        meta, inputs, results, totals, params = _make_fixtures()
+        rows = _parse_csv(build_csv_bytes(meta, inputs, results, totals, params))
+        totals_row = _csv_row_as_dict(rows, 3)
+        assert totals_row["小計"] == str(totals.grand_total)
+        assert totals_row["零件售價"] == str(totals.total_parts)
+        assert totals_row["工資"] == str(totals.total_labor)
 
 
 # ── PDF 基本 ─────────────────────────────────────────────────
